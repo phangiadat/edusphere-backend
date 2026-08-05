@@ -33,6 +33,53 @@ model User {
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
+  courses   Course[]
 
   @@map("users")
+}
+
+model Course {
+  id          String  @id @default(uuid())
+  title       String
+  description String?
+  price       Float   @default(0)
+  thumbnail   String?
+
+  isPublished Boolean @default(false)
+
+  instructorId String
+  instructor   User   @relation(fields: [instructorId], references: [id])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  chapters  Chapter[]
+}
+
+model Chapter {
+  id          String  @id @default(uuid())
+  title       String
+  order       Int
+  isPublished Boolean @default(false)
+
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  lessons   Lesson[]
+}
+
+model Lesson {
+  id          String  @id @default(uuid())
+  title       String
+  content     String?
+  videoUrl    String?
+  order       Int
+  isPublished Boolean @default(false)
+
+  chapterId String
+  chapter   Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
