@@ -7,12 +7,14 @@ import {
   Param,
   Delete,
   Req,
+  UseGuards,
 } from '@nestjs/common';
 import { LessonsService } from './lessons.service';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 
 @Controller('lessons')
 export class LessonsController {
@@ -50,5 +52,11 @@ export class LessonsController {
   @Delete(':id')
   remove(@Param('id') id: string, @Req() req) {
     return this.lessonsService.remove(id, req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get(':id/watch')
+  watchLesson(@Param('id') id: string, @Req() req) {
+    return this.lessonsService.watchLesson(id, req.user.id);
   }
 }

@@ -31,9 +31,10 @@ model User {
 
   refreshToken String? @map("refresh_token")
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-  courses   Course[]
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  courses     Course[]
+  enrollments Enrollment[]
 
   @@map("users")
 }
@@ -50,9 +51,10 @@ model Course {
   instructorId String
   instructor   User   @relation(fields: [instructorId], references: [id])
 
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  chapters  Chapter[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  chapters    Chapter[]
+  enrollments Enrollment[]
 }
 
 model Chapter {
@@ -82,4 +84,23 @@ model Lesson {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Enrollment {
+  id String @id @default(uuid())
+
+  userId   String
+  courseId String
+
+  user   User   @relation(fields: [userId], references: [id])
+  course Course @relation(fields: [courseId], references: [id])
+
+  pricePaid Float
+  progress  Float  @default(0)
+  status    String @default("ACTIVE")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, courseId])
 }

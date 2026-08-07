@@ -105,4 +105,41 @@ export class LessonsService {
     });
     return { message: 'Đã xóa bài giảng thành công!' };
   }
+
+  async watchLesson(id: string, userId: string) {
+    const lesson = await this.prisma.lesson.findUnique({
+      where: { id },
+      include: {
+        chapter: {
+          include: {
+            course: true,
+          },
+        },
+      },
+    });
+    if (!lesson || !lesson.isPublished) {
+      throw new NotFoundException(
+        'Bài giảng không tồn tại hoặc chưa được xuất bản!',
+      );
+    }
+
+    const courseId = lesson.chapter.courseId;
+    const instructorId = lesson.chapter.course.instructorId;
+    const isInstructor = instructorId === userId;
+    if (!isInstructor) {
+      const isEnrolled = await this.prisma.enrollment.findUnique({
+        where: {
+          userId_courseId: { userId, courseId },
+        },
+      });
+      if (!isEnrolled || isEnrolled.status !== 'ACTIVE') {
+        throw new ForbiddenException(
+          'Bạn phải mua khóa học này để xem nội dung',
+        );
+      }
+    }
+
+    const { chapter, ...lessonData } = lesson;
+    return lessonData;
+  }
 }
