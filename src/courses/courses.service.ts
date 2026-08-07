@@ -9,6 +9,8 @@ import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
+import { CourseFilterDto } from './dto/course-filter.dto';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class CoursesService {
@@ -16,6 +18,90 @@ export class CoursesService {
     private prisma: PrismaService,
     private cloudinaryService: CloudinaryService,
   ) {}
+
+  async findAllPublic(filterDto: CourseFilterDto) {
+    const { search, minPrice, maxPrice, page = 1, limit = 10 } = filterDto;
+    const skip = (page - 1) * limit;
+
+    const whereCondition: Prisma.CourseWhereInput = {
+      isPublished: true,
+    };
+
+    if (search) {
+      whereCondition.title = { contains: search, mode: 'insensitive' };
+    }
+
+    if (minPrice !== undefined || maxPrice !== undefined) {
+      whereCondition.price = {};
+      if (minPrice !== undefined) {
+        whereCondition.price.gte = minPrice;
+      }
+      if (maxPrice !== undefined) {
+        whereCondition.price.lte = maxPrice;
+      }
+    }
+
+    const [courses, total] = await Promise.all([
+      this.prisma.course.findMany({
+        where: whereCondition,
+        select: {
+          id: true,
+          title: true,
+          price: true,
+          thumbnail: true,
+          instructor: {
+            select: { fullName: true, avatarUrl: true },
+          },
+        },
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.course.count({ where: whereCondition }),
+    ]);
+
+    return {
+      data: courses,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  async findOnePublic(id: string) {
+    const course = await this.prisma.course.findFirst({
+      where: {
+        id,
+        isPublished: true,
+      },
+      include: {
+        instructor: {
+          select: { fullName: true, avatarUrl: true },
+        },
+        chapters: {
+          where: { isPublished: true },
+          orderBy: { order: 'asc' },
+          include: {
+            lessons: {
+              where: { isPublished: true },
+              orderBy: { order: 'asc' },
+              select: {
+                id: true,
+                title: true,
+                order: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!course) {
+      throw new NotFoundException(
+        'Không tìm thấy khóa học hoặc khóa học chưa được xuất bản!',
+      );
+    }
+
+    return course;
+  }
 
   async create(createCourseDto: CreateCourseDto, instructorId: string) {
     const { title, description, price, thumbnail } = createCourseDto;

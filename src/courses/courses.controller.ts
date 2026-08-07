@@ -19,10 +19,21 @@ import { Roles } from 'src/auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { multerOptions } from 'src/config/multer.config';
+import { CourseFilterDto } from './dto/course-filter.dto';
 
 @Controller('courses')
 export class CoursesController {
   constructor(private readonly coursesService: CoursesService) {}
+
+  @Get('public/all')
+  findAllPublic(@Query() filterDto: CourseFilterDto) {
+    return this.coursesService.findAllPublic(filterDto);
+  }
+
+  @Get('public/:id')
+  findOnePublic(@Param('id') id: string) {
+    return this.coursesService.findOnePublic(id);
+  }
 
   @Roles(Role.INSTRUCTOR)
   @Post()
