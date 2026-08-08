@@ -48,7 +48,7 @@ model Course {
   price       Float   @default(0)
   thumbnail   String?
 
-  isPublished Boolean @default(false)
+  status String @default("DRAFT")
 
   instructorId String
   instructor   User   @relation(fields: [instructorId], references: [id])

@@ -8,12 +8,19 @@ import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
 import { UpdateEnrollmentDto } from './dto/update-enrollment.dto';
 import Stripe from 'stripe';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class EnrollmentsService {
   private stripe: Stripe;
-  constructor(private prisma: PrismaService) {
-    this.stripe = new Stripe(process.env.STRIPE_SECREY_KEY as string, {
+  constructor(
+    private prisma: PrismaService,
+    private configService: ConfigService,
+  ) {
+    const stripeKey = this.configService.get<string>(
+      'STRIPE_SECRET_KEY',
+    ) as string;
+    this.stripe = new Stripe(stripeKey, {
       apiVersion: '2026-07-29.dahlia',
     });
   }
@@ -25,6 +32,12 @@ export class EnrollmentsService {
     });
     if (!course) {
       throw new NotFoundException('Khóa học không tồn tại');
+    }
+
+    if (course.status !== 'PUBLISHED') {
+      throw new BadRequestException(
+        'Khóa học này chưa được xuất bản hoặc đã bị gỡ bỏ!',
+      );
     }
 
     const existingEnrollment = await this.prisma.enrollment.findUnique({

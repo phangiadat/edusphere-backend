@@ -11,6 +11,7 @@ import {
   UploadedFile,
   UseInterceptors,
   BadRequestException,
+  UseGuards,
 } from '@nestjs/common';
 import { CoursesService } from './courses.service';
 import { CreateCourseDto } from './dto/create-course.dto';
@@ -20,6 +21,8 @@ import { Role } from '@prisma/client';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { multerOptions } from 'src/config/multer.config';
 import { CourseFilterDto } from './dto/course-filter.dto';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { ReviewCourseDto } from './dto/review-course.dto';
 
 @Controller('courses')
 export class CoursesController {
@@ -33,6 +36,20 @@ export class CoursesController {
   @Get('public/:id')
   findOnePublic(@Param('id') id: string) {
     return this.coursesService.findOnePublic(id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Roles(Role.ADMIN)
+  @Get('admin/pending')
+  getPendingCourses() {
+    return this.coursesService.getPendingCourses();
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Roles(Role.ADMIN)
+  @Patch('admin/:id/review')
+  reviewCourse(@Param('id') id: string, @Body() reviewDto: ReviewCourseDto) {
+    return this.coursesService.reviewCourse(id, reviewDto);
   }
 
   @Roles(Role.INSTRUCTOR)
@@ -87,5 +104,12 @@ export class CoursesController {
     }
 
     return this.coursesService.updateThumbnail(id, req.user.id, file);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Roles(Role.INSTRUCTOR)
+  @Post(':id/submit-review')
+  submitForReview(@Param('id') id: string, @Req() req) {
+    return this.coursesService.submitForReview(id, req.user.id);
   }
 }

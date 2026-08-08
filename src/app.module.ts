@@ -13,18 +13,20 @@ import { ChaptersModule } from './chapters/chapters.module';
 import { LessonsModule } from './lessons/lessons.module';
 import { EnrollmentsModule } from './enrollments/enrollments.module';
 import { CategoriesModule } from './categories/categories.module';
+import { ReviewsModule } from './reviews/reviews.module';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
     AuthModule,
-    ConfigModule.forRoot({ isGlobal: true }),
     CoursesModule,
     CloudinaryModule,
     ChaptersModule,
     LessonsModule,
     EnrollmentsModule,
     CategoriesModule,
+    ReviewsModule,
   ],
   controllers: [AppController],
   providers: [

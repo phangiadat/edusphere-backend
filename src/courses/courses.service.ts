@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -11,6 +12,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 import { CourseFilterDto } from './dto/course-filter.dto';
 import { Prisma } from '@prisma/client';
+import { ReviewCourseDto } from './dto/review-course.dto';
 
 @Injectable()
 export class CoursesService {
@@ -24,7 +26,7 @@ export class CoursesService {
     const skip = (page - 1) * limit;
 
     const whereCondition: Prisma.CourseWhereInput = {
-      isPublished: true,
+      status: 'PUBLISHED',
     };
 
     if (search) {
@@ -70,7 +72,7 @@ export class CoursesService {
     const course = await this.prisma.course.findFirst({
       where: {
         id,
-        isPublished: true,
+        status: 'PUBLISHED',
       },
       include: {
         instructor: {
@@ -256,5 +258,89 @@ export class CoursesService {
         'Lỗi hệ thống khi upload ảnh lên Cloud',
       );
     }
+  }
+
+  async submitForReview(courseId: string, instructorId: string) {
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      include: {
+        chapters: {
+          include: {
+            lessons: true,
+          },
+        },
+      },
+    });
+    if (!course) {
+      throw new NotFoundException('Không tìm thấy khóa học');
+    }
+    if (course.instructorId !== instructorId) {
+      throw new ForbiddenException(
+        'Bạn không có quyền thao tác trên khóa học này',
+      );
+    }
+    if (course.status !== 'DRAFT' && course.status !== 'REJECTED') {
+      throw new BadRequestException(
+        `Khóa học đang ở trạng thái ${course.status}, không thể gửi duyệt`,
+      );
+    }
+
+    const hasContent = course.chapters.some(
+      (chapter) => chapter.lessons.length > 0,
+    );
+    if (!hasContent) {
+      throw new BadRequestException(
+        'Khóa học phải có ít nhất 1 bài giảng trước khi gửi duyệt',
+      );
+    }
+
+    return this.prisma.course.update({
+      where: { id: courseId },
+      data: {
+        status: 'PENDING',
+      },
+    });
+  }
+
+  async getPendingCourses() {
+    return this.prisma.course.findMany({
+      where: { status: 'PENDING' },
+      include: {
+        instructor: {
+          select: {
+            fullName: true,
+            email: true,
+          },
+        },
+        _count: {
+          select: {
+            chapters: true,
+          },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+  }
+
+  async reviewCourse(courseId: string, reviewDto: ReviewCourseDto) {
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+    });
+    if (!course) {
+      throw new NotFoundException('Không tìm thấy khóa học');
+    }
+
+    if (course.status !== 'PENDING') {
+      throw new BadRequestException(
+        'Chỉ có thể duyệt khóa học đang ở trạng thái PENDING',
+      );
+    }
+    return this.prisma.course.update({
+      where: { id: courseId },
+      data: {
+        status: reviewDto.status,
+        // Nếu có bảng Notification, bạn có thể tạo log báo về cho Giảng viên kèm reviewDto.reason ở đây
+      },
+    });
   }
 }
