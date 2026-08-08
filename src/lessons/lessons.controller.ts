@@ -59,4 +59,10 @@ export class LessonsController {
   watchLesson(@Param('id') id: string, @Req() req) {
     return this.lessonsService.watchLesson(id, req.user.id);
   }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/complete')
+  markAsComplete(@Param('id') id: string, @Req() req) {
+    return this.lessonsService.markAsComplete(id, req.user.id);
+  }
 }

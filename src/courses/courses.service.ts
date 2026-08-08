@@ -83,11 +83,6 @@ export class CoursesService {
             lessons: {
               where: { isPublished: true },
               orderBy: { order: 'asc' },
-              select: {
-                id: true,
-                title: true,
-                order: true,
-              },
             },
           },
         },
@@ -100,7 +95,19 @@ export class CoursesService {
       );
     }
 
-    return course;
+    const sanitizedChapters = course.chapters.map((chapter) => ({
+      ...chapter,
+      lessons: chapter.lessons.map((lesson) => {
+        if (!lesson.isFreePreview) {
+          lesson.videoUrl = null;
+          lesson.content = null;
+        }
+
+        return lesson;
+      }),
+    }));
+
+    return { ...course, chapters: sanitizedChapters };
   }
 
   async create(createCourseDto: CreateCourseDto, instructorId: string) {

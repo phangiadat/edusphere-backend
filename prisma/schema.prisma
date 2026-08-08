@@ -72,12 +72,13 @@ model Chapter {
 }
 
 model Lesson {
-  id          String  @id @default(uuid())
-  title       String
-  content     String?
-  videoUrl    String?
-  order       Int
-  isPublished Boolean @default(false)
+  id            String  @id @default(uuid())
+  title         String
+  content       String?
+  videoUrl      String?
+  order         Int
+  isPublished   Boolean @default(false)
+  isFreePreview Boolean @default(false)
 
   chapterId String
   chapter   Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
@@ -95,12 +96,24 @@ model Enrollment {
   user   User   @relation(fields: [userId], references: [id])
   course Course @relation(fields: [courseId], references: [id])
 
-  pricePaid Float
-  progress  Float  @default(0)
-  status    String @default("ACTIVE")
+  pricePaid       Float
+  progress        Float   @default(0)
+  status          String  @default("ACTIVE")
+  paymentIntentId String? @unique
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([userId, courseId])
+}
+
+model LessonProgress {
+  id          String   @id @default(uuid())
+  isCompleted Boolean  @default(true)
+  userId      String
+  lessonId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, lessonId])
 }

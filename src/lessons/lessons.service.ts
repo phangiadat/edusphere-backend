@@ -142,4 +142,50 @@ export class LessonsService {
     const { chapter, ...lessonData } = lesson;
     return lessonData;
   }
+
+  async markAsComplete(lessonId: string, userId: string) {
+    const lesson = await this.prisma.lesson.findUnique({
+      where: { id: lessonId },
+      include: {
+        chapter: true,
+      },
+    });
+    if (!lesson) {
+      throw new NotFoundException('Không tìm thấy bài giảng');
+    }
+
+    const courseId = lesson.chapter.courseId;
+    await this.prisma.lessonProgress.upsert({
+      where: { userId_lessonId: { userId, lessonId } },
+      update: { isCompleted: true },
+      create: { userId, lessonId, isCompleted: true },
+    });
+
+    const courseLessons = await this.prisma.lesson.findMany({
+      where: { chapter: { courseId }, isPublished: true },
+      select: { id: true }, // Chỉ lấy ID cho nhẹ
+    });
+    const lessonIds = courseLessons.map((l) => l.id);
+    const totalLessons = lessonIds.length;
+
+    const completedLessons = await this.prisma.lessonProgress.count({
+      where: {
+        userId,
+        isCompleted: true,
+        lessonId: { in: lessonIds }, // Dùng toán tử IN: Tìm các lessonId nằm trong mảng trên
+      },
+    });
+
+    // Công thức tính phần trăm
+    const progressPercentage =
+      totalLessons === 0 ? 0 : (completedLessons / totalLessons) * 100;
+
+    // 4. Cập nhật vào bảng Enrollment
+    await this.prisma.enrollment.update({
+      where: { userId_courseId: { userId, courseId } },
+      data: { progress: progressPercentage },
+    });
+
+    return { message: 'Đã lưu tiến độ học tập', progress: progressPercentage };
+  }
 }

@@ -90,14 +90,32 @@ export class EnrollmentsService {
       const courseId = session.metadata.courseId;
       const pricePaid = parseFloat(session.metadata.pricePaid);
 
+      const paymentIntentId = session.payment_intent as string;
+
       await this.prisma.enrollment.create({
         data: {
           userId,
           courseId,
           pricePaid,
           status: 'ACTIVE',
+          paymentIntentId,
         },
       });
+    }
+
+    if (event.type === 'charge.refunded') {
+      const charge = event.data.object as Stripe.Charge;
+      const paymentIntentId = charge.payment_intent as string;
+      if (paymentIntentId) {
+        await this.prisma.enrollment.update({
+          where: {
+            paymentIntentId,
+          },
+          data: {
+            status: 'REFUNDED',
+          },
+        });
+      }
     }
 
     return { received: true };
