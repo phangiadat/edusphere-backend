@@ -31,10 +31,12 @@ model User {
 
   refreshToken String? @map("refresh_token")
 
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime     @updatedAt @map("updated_at")
-  courses     Course[]
-  enrollments Enrollment[]
+  createdAt             DateTime               @default(now()) @map("created_at")
+  updatedAt             DateTime               @updatedAt @map("updated_at")
+  courses               Course[]
+  enrollments           Enrollment[]
+  reviews               Review[]
+  assignmentSubmissions AssignmentSubmission[]
 
   @@map("users")
 }
@@ -51,10 +53,14 @@ model Course {
   instructorId String
   instructor   User   @relation(fields: [instructorId], references: [id])
 
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id])
+
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   chapters    Chapter[]
   enrollments Enrollment[]
+  reviews     Review[]
 }
 
 model Chapter {
@@ -66,9 +72,10 @@ model Chapter {
   courseId String
   course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  lessons   Lesson[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  lessons     Lesson[]
+  assignments Assignment[]
 }
 
 model Lesson {
@@ -116,4 +123,63 @@ model LessonProgress {
   updatedAt   DateTime @updatedAt
 
   @@unique([userId, lessonId])
+}
+
+model Category {
+  id        String   @id() @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  courses   Course[]
+}
+
+model Review {
+  id      String  @id @default(uuid())
+  rating  Int
+  comment String?
+
+  userId   String
+  courseId String
+
+  user   User   @relation(fields: [userId], references: [id])
+  course Course @relation(fields: [courseId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, courseId])
+}
+
+model Assignment {
+  id          String    @id @default(uuid())
+  title       String
+  description String?
+  dueDate     DateTime?
+
+  chapterId String
+  chapter   Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  assignmentSubmissions AssignmentSubmission[]
+}
+
+model AssignmentSubmission {
+  id       String  @id @default(uuid())
+  content  String?
+  fileUrl  String?
+  score    Float?
+  feedback String?
+  status   String  @default("SUBMITTED")
+
+  userId       String
+  assignmentId String
+
+  user       User       @relation(fields: [userId], references: [id])
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, assignmentId])
 }
