@@ -12,6 +12,7 @@ import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { ChaptersModule } from './chapters/chapters.module';
 import { LessonsModule } from './lessons/lessons.module';
 import { EnrollmentsModule } from './enrollments/enrollments.module';
+import { CategoriesModule } from './categories/categories.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { EnrollmentsModule } from './enrollments/enrollments.module';
     ChaptersModule,
     LessonsModule,
     EnrollmentsModule,
+    CategoriesModule,
   ],
   controllers: [AppController],
   providers: [
