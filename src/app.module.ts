@@ -15,6 +15,7 @@ import { EnrollmentsModule } from './enrollments/enrollments.module';
 import { CategoriesModule } from './categories/categories.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { AssignmentsModule } from './assignments/assignments.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { AssignmentsModule } from './assignments/assignments.module';
     CategoriesModule,
     ReviewsModule,
     AssignmentsModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [

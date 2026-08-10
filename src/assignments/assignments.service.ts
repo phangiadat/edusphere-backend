@@ -8,10 +8,16 @@ import { CreateAssignmentDto } from './dto/create-assignment.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { SubmitAssignmentDto } from './dto/submit-assignment.dto';
 import { GradeAssignmentDto } from './dto/grade-assignment.dto';
+import { NotificationsGateway } from 'src/notifications/notifications.gateway';
+import { title } from 'process';
+import { timestamp } from 'rxjs';
 
 @Injectable()
 export class AssignmentsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notificationsGateway: NotificationsGateway,
+  ) {}
   async create(instructorId: string, createAssignmentDto: CreateAssignmentDto) {
     const chapter = await this.prisma.chapter.findUnique({
       where: { id: createAssignmentDto.chapterId },
@@ -151,7 +157,7 @@ export class AssignmentsService {
       throw new ForbiddenException('Bạn không có quyền chấm điểm bài này');
     }
 
-    return this.prisma.assignmentSubmission.update({
+    const updatedSubmission = await this.prisma.assignmentSubmission.update({
       where: { id: submissionId },
       data: {
         score: gradeDto.score,
@@ -159,5 +165,16 @@ export class AssignmentsService {
         status: 'GRADED',
       },
     });
+
+    const courseName = submission.assignment.chapter.course.title;
+
+    this.notificationsGateway.sendNotificationToUser(submission.userId, {
+      type: 'GRADE_UPDATED',
+      title: 'Đã có điểm bài tập',
+      message: `Giảng viên vừa chấm điểm bài tập trong khóa học "${courseName}". Bạn được ${gradeDto.score} điểm.`,
+      timestamp: new Date(),
+    });
+
+    return updatedSubmission;
   }
 }
