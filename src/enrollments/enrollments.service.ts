@@ -4,11 +4,11 @@ import {
   NotFoundException,
   RawBodyRequest,
 } from '@nestjs/common';
-import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
 import { UpdateEnrollmentDto } from './dto/update-enrollment.dto';
 import Stripe from 'stripe';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
+import { NotificationsService } from 'src/notifications/notifications.service';
 
 @Injectable()
 export class EnrollmentsService {
@@ -16,6 +16,7 @@ export class EnrollmentsService {
   constructor(
     private prisma: PrismaService,
     private configService: ConfigService,
+    private notificationService: NotificationsService,
   ) {
     const stripeKey = this.configService.get<string>(
       'STRIPE_SECRET_KEY',
@@ -114,6 +115,19 @@ export class EnrollmentsService {
           paymentIntentId,
         },
       });
+
+      const course = await this.prisma.course.findUnique({
+        where: { id: courseId },
+      });
+      if (course) {
+        await this.notificationService.createNotification({
+          userId: userId,
+          type: 'COURSE_ENROLLED',
+          title: 'Thanh toán thành công!',
+          message: `Chào mừng bạn đến với khóa học "${course.title}". Bắt đầu hành trình học tập ngay thôi!`,
+          link: `/courses/${courseId}/learn`,
+        });
+      }
     }
 
     if (event.type === 'charge.refunded') {

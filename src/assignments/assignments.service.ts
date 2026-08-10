@@ -8,15 +8,13 @@ import { CreateAssignmentDto } from './dto/create-assignment.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { SubmitAssignmentDto } from './dto/submit-assignment.dto';
 import { GradeAssignmentDto } from './dto/grade-assignment.dto';
-import { NotificationsGateway } from 'src/notifications/notifications.gateway';
-import { title } from 'process';
-import { timestamp } from 'rxjs';
+import { NotificationsService } from 'src/notifications/notifications.service';
 
 @Injectable()
 export class AssignmentsService {
   constructor(
     private prisma: PrismaService,
-    private notificationsGateway: NotificationsGateway,
+    private notificationsService: NotificationsService,
   ) {}
   async create(instructorId: string, createAssignmentDto: CreateAssignmentDto) {
     const chapter = await this.prisma.chapter.findUnique({
@@ -168,11 +166,12 @@ export class AssignmentsService {
 
     const courseName = submission.assignment.chapter.course.title;
 
-    this.notificationsGateway.sendNotificationToUser(submission.userId, {
-      type: 'GRADE_UPDATED',
-      title: 'Đã có điểm bài tập',
+    await this.notificationsService.createNotification({
+      userId: submission.userId,
+      type: 'ASSIGNMENT_GRADED',
+      title: 'Đã có điểm bài tập!',
       message: `Giảng viên vừa chấm điểm bài tập trong khóa học "${courseName}". Bạn được ${gradeDto.score} điểm.`,
-      timestamp: new Date(),
+      link: `/courses/${courseOwnerId}/assignments/${submissionId}`, // Giả lập link chuyển hướng
     });
 
     return updatedSubmission;

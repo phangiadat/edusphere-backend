@@ -37,6 +37,7 @@ model User {
   enrollments           Enrollment[]
   reviews               Review[]
   assignmentSubmissions AssignmentSubmission[]
+  notifications         Notification[]
 
   @@map("users")
 }
@@ -182,4 +183,23 @@ model AssignmentSubmission {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, assignmentId])
+}
+
+model Notification {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type   String
+
+  title   String
+  message String @db.Text
+
+  link   String?
+  isRead Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([createdAt(sort: Desc)])
 }

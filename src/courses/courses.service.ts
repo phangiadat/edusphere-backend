@@ -13,12 +13,14 @@ import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 import { CourseFilterDto } from './dto/course-filter.dto';
 import { Prisma } from '@prisma/client';
 import { ReviewCourseDto } from './dto/review-course.dto';
+import { NotificationsService } from 'src/notifications/notifications.service';
 
 @Injectable()
 export class CoursesService {
   constructor(
     private prisma: PrismaService,
     private cloudinaryService: CloudinaryService,
+    private notificationSerivce: NotificationsService,
   ) {}
 
   async findAllPublic(filterDto: CourseFilterDto) {
@@ -335,12 +337,30 @@ export class CoursesService {
         'Chỉ có thể duyệt khóa học đang ở trạng thái PENDING',
       );
     }
-    return this.prisma.course.update({
+    const updatedCourse = this.prisma.course.update({
       where: { id: courseId },
       data: {
         status: reviewDto.status,
-        // Nếu có bảng Notification, bạn có thể tạo log báo về cho Giảng viên kèm reviewDto.reason ở đây
       },
     });
+
+    await this.notificationSerivce.createNotification({
+      userId: course.instructorId,
+      type:
+        reviewDto.status === 'PUBLISHED'
+          ? 'COURSE_APPROVED'
+          : 'COURSE_REJECTED',
+      title:
+        reviewDto.status === 'PUBLISHED'
+          ? 'Khóa học đã được duyệt'
+          : 'Khóa học cần chỉnh sửa',
+      message:
+        reviewDto.status === 'PUBLISHED'
+          ? `Tuyệt vời! Khóa học "${course.title}" của bạn đã được xuất bản lên hệ thống.`
+          : `Khóa học "${course.title}" của bạn chưa đạt yêu cầu. Lý do: ${reviewDto.reason || 'Vui lòng kiểm tra lại nội dung.'}`,
+      link: `/instructor/courses/${course.id}`,
+    });
+
+    return updatedCourse;
   }
 }
