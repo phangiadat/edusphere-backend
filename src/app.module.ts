@@ -16,6 +16,7 @@ import { CategoriesModule } from './categories/categories.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { AssignmentsModule } from './assignments/assignments.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { ChatModule } from './chat/chat.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     ReviewsModule,
     AssignmentsModule,
     NotificationsModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [
