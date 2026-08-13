@@ -13,6 +13,7 @@ import { EnrollmentsService } from './enrollments.service';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
+import { SkipThrottle } from '@nestjs/throttler';
 
 @Controller('enrollments')
 export class EnrollmentsController {
@@ -25,6 +26,7 @@ export class EnrollmentsController {
     return this.enrollmentsService.createCheckoutSession(req.user.id, courseId);
   }
 
+  @SkipThrottle()
   @Post('webhook')
   handleWebhook(
     @Req() req: RawBodyRequest<Request>,

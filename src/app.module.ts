@@ -2,6 +2,9 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Module } from '@nestjs/common';
 import { CacheModule } from '@nestjs/cache-manager';
 import { redisStore } from 'cache-manager-redis-yet';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
+import Redis from 'ioredis';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
@@ -38,6 +41,25 @@ import { AiModule } from './ai/ai.module';
       }),
       inject: [ConfigService],
     }),
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        throttlers: [
+          {
+            name: 'default',
+            ttl: 60000,
+            limit: 100,
+          },
+        ],
+        storage: new ThrottlerStorageRedisService(
+          new Redis({
+            host: configService.get<string>('REDIS_HOST', '127.0.0.1'),
+            port: configService.get<number>('REDIS_PORT', 6379),
+          }),
+        ),
+      }),
+    }),
     PrismaModule,
     AuthModule,
     CoursesModule,
@@ -55,6 +77,10 @@ import { AiModule } from './ai/ai.module';
   controllers: [AppController],
   providers: [
     AppService,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
