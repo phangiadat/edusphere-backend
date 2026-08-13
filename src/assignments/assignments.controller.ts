@@ -7,6 +7,7 @@ import {
   Param,
   UseGuards,
   Req,
+  Query,
 } from '@nestjs/common';
 import { AssignmentsService } from './assignments.service';
 import { CreateAssignmentDto } from './dto/create-assignment.dto';
@@ -40,8 +41,13 @@ export class AssignmentsController {
   @UseGuards(JwtAuthGuard)
   @Roles(Role.INSTRUCTOR)
   @Get(':id/submissions')
-  getSubmission(@Param('id') id: string, @Req() req) {
-    return this.assignmentsService.getSubmissions(req.user.id, id);
+  getSubmission(
+    @Param('id') id: string,
+    @Req() req,
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '20',
+  ) {
+    return this.assignmentsService.getSubmissions(req.user.id, id, +page, +limit);
   }
 
   @UseGuards(JwtAuthGuard)

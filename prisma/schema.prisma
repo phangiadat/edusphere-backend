@@ -1,8 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -15,6 +13,24 @@ enum Role {
   STUDENT
   INSTRUCTOR
   ADMIN
+}
+
+enum CourseStatus {
+  DRAFT
+  PENDING
+  PUBLISHED
+  REJECTED
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  CANCELLED
+  REFUNDED
+}
+
+enum SubmissionStatus {
+  SUBMITTED
+  GRADED
 }
 
 model User {
@@ -41,6 +57,7 @@ model User {
   conversationsAsUser1  Conversation[]         @relation("User1Conversations")
   conversationsAsUser2  Conversation[]         @relation("User2Conversations")
   messagesSent          Message[]
+  lessonProgresses      LessonProgress[]
 
   @@map("users")
 }
@@ -52,7 +69,7 @@ model Course {
   price       Float   @default(0)
   thumbnail   String?
 
-  status String @default("DRAFT")
+  status CourseStatus @default(DRAFT)
 
   instructorId String
   instructor   User   @relation(fields: [instructorId], references: [id])
@@ -65,6 +82,10 @@ model Course {
   chapters    Chapter[]
   enrollments Enrollment[]
   reviews     Review[]
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([instructorId])
+  @@index([categoryId])
 }
 
 model Chapter {
@@ -80,6 +101,9 @@ model Chapter {
   updatedAt   DateTime     @updatedAt
   lessons     Lesson[]
   assignments Assignment[]
+
+  @@unique([courseId, order])
+  @@index([courseId, order(sort: Asc)])
 }
 
 model Lesson {
@@ -88,14 +112,19 @@ model Lesson {
   content       String?
   videoUrl      String?
   order         Int
+  duration      Int     @default(0)
   isPublished   Boolean @default(false)
   isFreePreview Boolean @default(false)
 
   chapterId String
   chapter   Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  lessonProgresses LessonProgress[]
+
+  @@unique([chapterId, order])
+  @@index([chapterId, order(sort: Asc)])
 }
 
 model Enrollment {
@@ -108,30 +137,36 @@ model Enrollment {
   course Course @relation(fields: [courseId], references: [id])
 
   pricePaid       Float
-  progress        Float   @default(0)
-  status          String  @default("ACTIVE")
-  paymentIntentId String? @unique
+  progress        Float            @default(0)
+  status          EnrollmentStatus @default(ACTIVE)
+  paymentIntentId String?          @unique
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([userId, courseId])
+  @@index([userId, status])
+  @@index([courseId])
 }
 
 model LessonProgress {
   id          String   @id @default(uuid())
   isCompleted Boolean  @default(true)
   userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   lessonId    String
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@unique([userId, lessonId])
+  @@index([userId, isCompleted])
 }
 
 model Category {
   id        String   @id() @default(uuid())
   name      String   @unique
+  slug      String?  @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   courses   Course[]
@@ -152,6 +187,7 @@ model Review {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, courseId])
+  @@index([courseId, updatedAt(sort: Desc)])
 }
 
 model Assignment {
@@ -166,15 +202,17 @@ model Assignment {
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
   assignmentSubmissions AssignmentSubmission[]
+
+  @@index([chapterId])
 }
 
 model AssignmentSubmission {
-  id       String  @id @default(uuid())
+  id       String           @id @default(uuid())
   content  String?
   fileUrl  String?
   score    Float?
   feedback String?
-  status   String  @default("SUBMITTED")
+  status   SubmissionStatus @default(SUBMITTED)
 
   userId       String
   assignmentId String
@@ -186,6 +224,7 @@ model AssignmentSubmission {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, assignmentId])
+  @@index([assignmentId, updatedAt(sort: Desc)])
 }
 
 model Notification {
@@ -203,8 +242,7 @@ model Notification {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([userId])
-  @@index([createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
 }
 
 model Conversation {
@@ -222,6 +260,7 @@ model Conversation {
   @@unique([user1Id, user2Id])
   @@index([user1Id])
   @@index([user2Id])
+  @@index([updatedAt(sort: Desc)])
 }
 
 model Message {

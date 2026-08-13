@@ -9,6 +9,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { SubmitAssignmentDto } from './dto/submit-assignment.dto';
 import { GradeAssignmentDto } from './dto/grade-assignment.dto';
 import { NotificationsService } from 'src/notifications/notifications.service';
+import { EnrollmentStatus, SubmissionStatus } from '@prisma/client';
 
 @Injectable()
 export class AssignmentsService {
@@ -16,10 +17,14 @@ export class AssignmentsService {
     private prisma: PrismaService,
     private notificationsService: NotificationsService,
   ) {}
+
   async create(instructorId: string, createAssignmentDto: CreateAssignmentDto) {
     const chapter = await this.prisma.chapter.findUnique({
       where: { id: createAssignmentDto.chapterId },
-      include: { course: true },
+      select: {
+        id: true,
+        course: { select: { instructorId: true } },
+      },
     });
     if (!chapter) {
       throw new NotFoundException('Không tìm thấy chương học này');
@@ -54,7 +59,13 @@ export class AssignmentsService {
 
     const assignment = await this.prisma.assignment.findUnique({
       where: { id: assignmentId },
-      include: { chapter: true },
+      select: {
+        id: true,
+        dueDate: true,
+        chapter: {
+          select: { courseId: true },
+        },
+      },
     });
 
     if (!assignment) {
@@ -70,8 +81,9 @@ export class AssignmentsService {
       where: {
         userId_courseId: { userId, courseId },
       },
+      select: { status: true },
     });
-    if (!isEnrolled || isEnrolled.status !== 'ACTIVE') {
+    if (!isEnrolled || isEnrolled.status !== EnrollmentStatus.ACTIVE) {
       throw new ForbiddenException(
         'Bạn phải tham gia khóa học này để có thể nộp bài',
       );
@@ -84,25 +96,31 @@ export class AssignmentsService {
       update: {
         content: submitDto.content,
         fileUrl: submitDto.fileUrl,
-        status: 'SUBMITTED',
+        status: SubmissionStatus.SUBMITTED,
       },
       create: {
         userId,
         assignmentId,
         content: submitDto.content,
         fileUrl: submitDto.fileUrl,
-        status: 'SUBMITTED',
+        status: SubmissionStatus.SUBMITTED,
       },
     });
   }
 
-  async getSubmissions(instructorId: string, assignmentId: string) {
+  async getSubmissions(
+    instructorId: string,
+    assignmentId: string,
+    page = 1,
+    limit = 20,
+  ) {
     const assignment = await this.prisma.assignment.findUnique({
       where: { id: assignmentId },
-      include: {
+      select: {
+        id: true,
         chapter: {
-          include: {
-            course: true,
+          select: {
+            course: { select: { instructorId: true } },
           },
         },
       },
@@ -117,19 +135,41 @@ export class AssignmentsService {
       );
     }
 
-    return this.prisma.assignmentSubmission.findMany({
-      where: { assignmentId },
-      include: {
-        user: {
-          select: {
-            fullName: true,
-            avatarUrl: true,
-            email: true,
+    const skip = (page - 1) * limit;
+
+    const [submissions, total] = await Promise.all([
+      this.prisma.assignmentSubmission.findMany({
+        where: { assignmentId },
+        select: {
+          id: true,
+          content: true,
+          fileUrl: true,
+          score: true,
+          feedback: true,
+          status: true,
+          userId: true,
+          assignmentId: true,
+          createdAt: true,
+          updatedAt: true,
+          user: {
+            select: {
+              fullName: true,
+              avatarUrl: true,
+              email: true,
+            },
           },
         },
-      },
-      orderBy: { updatedAt: 'desc' },
-    });
+        orderBy: { updatedAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.assignmentSubmission.count({ where: { assignmentId } }),
+    ]);
+
+    return {
+      data: submissions,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async gradeSubmission(
@@ -138,15 +178,20 @@ export class AssignmentsService {
     gradeDto: GradeAssignmentDto,
   ) {
     const submission = await this.prisma.assignmentSubmission.findUnique({
-      where: {
-        id: submissionId,
-      },
-      include: {
+      where: { id: submissionId },
+      select: {
+        id: true,
+        userId: true,
         assignment: {
-          include: {
+          select: {
             chapter: {
-              include: {
-                course: true,
+              select: {
+                course: {
+                  select: {
+                    title: true,
+                    instructorId: true,
+                  },
+                },
               },
             },
           },
@@ -166,7 +211,7 @@ export class AssignmentsService {
       data: {
         score: gradeDto.score,
         feedback: gradeDto.feedback,
-        status: 'GRADED',
+        status: SubmissionStatus.GRADED,
       },
     });
 
@@ -177,7 +222,7 @@ export class AssignmentsService {
       type: 'ASSIGNMENT_GRADED',
       title: 'Đã có điểm bài tập!',
       message: `Giảng viên vừa chấm điểm bài tập trong khóa học "${courseName}". Bạn được ${gradeDto.score} điểm.`,
-      link: `/courses/${courseOwnerId}/assignments/${submissionId}`, // Giả lập link chuyển hướng
+      link: `/courses/${courseOwnerId}/assignments/${submissionId}`,
     });
 
     return updatedSubmission;

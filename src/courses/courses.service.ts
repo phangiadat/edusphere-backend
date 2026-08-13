@@ -11,7 +11,7 @@ import { UpdateCourseDto } from './dto/update-course.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 import { CourseFilterDto } from './dto/course-filter.dto';
-import { Prisma } from '@prisma/client';
+import { CourseStatus, Prisma } from '@prisma/client';
 import { ReviewCourseDto } from './dto/review-course.dto';
 import { NotificationsService } from 'src/notifications/notifications.service';
 
@@ -28,7 +28,7 @@ export class CoursesService {
     const skip = (page - 1) * limit;
 
     const whereCondition: Prisma.CourseWhereInput = {
-      status: 'PUBLISHED',
+      status: CourseStatus.PUBLISHED,
     };
 
     if (search) {
@@ -74,19 +74,47 @@ export class CoursesService {
     const course = await this.prisma.course.findFirst({
       where: {
         id,
-        status: 'PUBLISHED',
+        status: CourseStatus.PUBLISHED,
       },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        price: true,
+        thumbnail: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
         instructor: {
           select: { fullName: true, avatarUrl: true },
         },
         chapters: {
           where: { isPublished: true },
           orderBy: { order: 'asc' },
-          include: {
+          select: {
+            id: true,
+            title: true,
+            order: true,
+            isPublished: true,
+            courseId: true,
+            createdAt: true,
+            updatedAt: true,
             lessons: {
               where: { isPublished: true },
               orderBy: { order: 'asc' },
+              select: {
+                id: true,
+                title: true,
+                order: true,
+                duration: true,
+                isPublished: true,
+                isFreePreview: true,
+                chapterId: true,
+                createdAt: true,
+                updatedAt: true,
+                videoUrl: true,
+                content: true,
+              },
             },
           },
         },
@@ -103,10 +131,8 @@ export class CoursesService {
       ...chapter,
       lessons: chapter.lessons.map((lesson) => {
         if (!lesson.isFreePreview) {
-          lesson.videoUrl = null;
-          lesson.content = null;
+          return { ...lesson, videoUrl: null, content: null };
         }
-
         return lesson;
       }),
     }));
@@ -135,6 +161,7 @@ export class CoursesService {
           price: price || 0,
           thumbnail,
           instructorId,
+          status: CourseStatus.DRAFT,
         },
       });
 
@@ -265,10 +292,16 @@ export class CoursesService {
   async submitForReview(courseId: string, instructorId: string) {
     const course = await this.prisma.course.findUnique({
       where: { id: courseId },
-      include: {
+      select: {
+        id: true,
+        instructorId: true,
+        status: true,
         chapters: {
-          include: {
-            lessons: true,
+          select: {
+            lessons: {
+              select: { id: true },
+              take: 1,
+            },
           },
         },
       },
@@ -281,7 +314,10 @@ export class CoursesService {
         'Bạn không có quyền thao tác trên khóa học này',
       );
     }
-    if (course.status !== 'DRAFT' && course.status !== 'REJECTED') {
+    if (
+      course.status !== CourseStatus.DRAFT &&
+      course.status !== CourseStatus.REJECTED
+    ) {
       throw new BadRequestException(
         `Khóa học đang ở trạng thái ${course.status}, không thể gửi duyệt`,
       );
@@ -299,15 +335,21 @@ export class CoursesService {
     return this.prisma.course.update({
       where: { id: courseId },
       data: {
-        status: 'PENDING',
+        status: CourseStatus.PENDING,
       },
     });
   }
 
   async getPendingCourses() {
     return this.prisma.course.findMany({
-      where: { status: 'PENDING' },
-      include: {
+      where: { status: CourseStatus.PENDING },
+      select: {
+        id: true,
+        title: true,
+        price: true,
+        thumbnail: true,
+        status: true,
+        updatedAt: true,
         instructor: {
           select: {
             fullName: true,
@@ -327,12 +369,18 @@ export class CoursesService {
   async reviewCourse(courseId: string, reviewDto: ReviewCourseDto) {
     const course = await this.prisma.course.findUnique({
       where: { id: courseId },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        instructorId: true,
+      },
     });
     if (!course) {
       throw new NotFoundException('Không tìm thấy khóa học');
     }
 
-    if (course.status !== 'PENDING') {
+    if (course.status !== CourseStatus.PENDING) {
       throw new BadRequestException(
         'Chỉ có thể duyệt khóa học đang ở trạng thái PENDING',
       );
@@ -347,15 +395,15 @@ export class CoursesService {
     await this.notificationSerivce.createNotification({
       userId: course.instructorId,
       type:
-        reviewDto.status === 'PUBLISHED'
+        reviewDto.status === CourseStatus.PUBLISHED
           ? 'COURSE_APPROVED'
           : 'COURSE_REJECTED',
       title:
-        reviewDto.status === 'PUBLISHED'
+        reviewDto.status === CourseStatus.PUBLISHED
           ? 'Khóa học đã được duyệt'
           : 'Khóa học cần chỉnh sửa',
       message:
-        reviewDto.status === 'PUBLISHED'
+        reviewDto.status === CourseStatus.PUBLISHED
           ? `Tuyệt vời! Khóa học "${course.title}" của bạn đã được xuất bản lên hệ thống.`
           : `Khóa học "${course.title}" của bạn chưa đạt yêu cầu. Lý do: ${reviewDto.reason || 'Vui lòng kiểm tra lại nội dung.'}`,
       link: `/instructor/courses/${course.id}`,

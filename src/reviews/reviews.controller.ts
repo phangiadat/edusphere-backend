@@ -3,15 +3,13 @@ import {
   Get,
   Post,
   Body,
-  Patch,
   Param,
-  Delete,
   UseGuards,
   Req,
+  Query,
 } from '@nestjs/common';
 import { ReviewsService } from './reviews.service';
 import { CreateReviewDto } from './dto/create-review.dto';
-import { UpdateReviewDto } from './dto/update-review.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
@@ -36,11 +34,14 @@ export class ReviewsController {
   }
 
   @Get('course/:courseId/list')
-  getCourseReviews(@Param('courseId') courseId: string) {
-    return this.reviewsService.getCourseReviews(courseId);
+  getCourseReviews(
+    @Param('courseId') courseId: string,
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '10',
+  ) {
+    return this.reviewsService.getCourseReviews(courseId, +page, +limit);
   }
 
-  // 3. API LẤY ĐIỂM TRUNG BÌNH & SỔ LƯỢNG ĐÁNH GIÁ (PUBLIC)
   @Get('course/:courseId/stats')
   getCourseStats(@Param('courseId') courseId: string) {
     return this.reviewsService.getCourseStats(courseId);

@@ -71,14 +71,10 @@ describe('ChatService', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    it('should return messages for existing conversation', async () => {
+    it('should return paginated messages for existing conversation', async () => {
       mockPrisma.conversation.findUnique.mockResolvedValue({
         id: 'conv-1',
-        user1Id: 'user-1',
-        user2Id: 'user-2',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
+      } as any);
 
       const mockMessages = [
         {
@@ -88,16 +84,24 @@ describe('ChatService', () => {
           content: 'Xin chào',
           isRead: false,
           createdAt: new Date(),
+          sender: {
+            id: 'user-1',
+            fullName: 'User One',
+            avatarUrl: null,
+          },
         },
       ];
-      mockPrisma.message.findMany.mockResolvedValue(mockMessages);
+      mockPrisma.message.findMany.mockResolvedValue(mockMessages as any);
+      mockPrisma.message.count.mockResolvedValue(1);
 
-      const result = await service.getMessages('conv-1');
+      const result = await service.getMessages('conv-1', 1, 50);
 
-      expect(result).toEqual(mockMessages);
-      expect(mockPrisma.message.findMany).toHaveBeenCalledWith({
-        where: { conversationId: 'conv-1' },
-        orderBy: { createdAt: 'desc' },
+      expect(result.data).toEqual(mockMessages);
+      expect(result.meta).toEqual({
+        total: 1,
+        page: 1,
+        limit: 50,
+        totalPages: 1,
       });
     });
   });

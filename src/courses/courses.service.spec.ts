@@ -4,7 +4,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 import { NotificationsService } from 'src/notifications/notifications.service';
 import { mockDeep, DeepMockProxy } from 'jest-mock-extended';
-import { PrismaClient } from '@prisma/client';
+import { CourseStatus, PrismaClient } from '@prisma/client';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 describe('CoursesService', () => {
@@ -37,7 +37,7 @@ describe('CoursesService', () => {
       description: 'Học NestJS từ cơ bản đến nâng cao',
       price: 500000,
       thumbnail: null,
-      status: 'PENDING',
+      status: CourseStatus.PENDING,
       instructorId: 'instructor-1',
       categoryId: null,
       createdAt: new Date(),
@@ -45,18 +45,18 @@ describe('CoursesService', () => {
     };
 
     it('should approve a PENDING course and send notification', async () => {
-      mockPrisma.course.findUnique.mockResolvedValue(mockCourse);
-      const updatedCourse = { ...mockCourse, status: 'PUBLISHED' };
-      mockPrisma.course.update.mockResolvedValue(updatedCourse);
+      mockPrisma.course.findUnique.mockResolvedValue(mockCourse as any);
+      const updatedCourse = { ...mockCourse, status: CourseStatus.PUBLISHED };
+      mockPrisma.course.update.mockResolvedValue(updatedCourse as any);
 
       const result = await service.reviewCourse('course-1', {
-        status: 'PUBLISHED',
+        status: CourseStatus.PUBLISHED,
       });
 
-      expect(result.status).toBe('PUBLISHED');
+      expect(result.status).toBe(CourseStatus.PUBLISHED);
       expect(mockPrisma.course.update).toHaveBeenCalledWith({
         where: { id: 'course-1' },
-        data: { status: 'PUBLISHED' },
+        data: { status: CourseStatus.PUBLISHED },
       });
       expect(mockNotifications.createNotification).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -70,18 +70,18 @@ describe('CoursesService', () => {
       mockPrisma.course.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.reviewCourse('non-existent', { status: 'PUBLISHED' }),
+        service.reviewCourse('non-existent', { status: CourseStatus.PUBLISHED }),
       ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw BadRequestException when course is not in PENDING status', async () => {
       mockPrisma.course.findUnique.mockResolvedValue({
         ...mockCourse,
-        status: 'DRAFT',
-      });
+        status: CourseStatus.DRAFT,
+      } as any);
 
       await expect(
-        service.reviewCourse('course-1', { status: 'PUBLISHED' }),
+        service.reviewCourse('course-1', { status: CourseStatus.PUBLISHED }),
       ).rejects.toThrow(BadRequestException);
     });
   });

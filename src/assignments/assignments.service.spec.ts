@@ -3,7 +3,12 @@ import { AssignmentsService } from './assignments.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { NotificationsService } from 'src/notifications/notifications.service';
 import { mockDeep, DeepMockProxy } from 'jest-mock-extended';
-import { PrismaClient } from '@prisma/client';
+import {
+  CourseStatus,
+  EnrollmentStatus,
+  PrismaClient,
+  SubmissionStatus,
+} from '@prisma/client';
 import {
   BadRequestException,
   ForbiddenException,
@@ -39,7 +44,7 @@ describe('AssignmentsService', () => {
       fileUrl: null,
       score: null,
       feedback: null,
-      status: 'SUBMITTED',
+      status: SubmissionStatus.SUBMITTED,
       userId: 'student-1',
       assignmentId: 'assign-1',
       createdAt: new Date(),
@@ -66,7 +71,7 @@ describe('AssignmentsService', () => {
             description: null,
             price: 100000,
             thumbnail: null,
-            status: 'PUBLISHED',
+            status: CourseStatus.PUBLISHED,
             instructorId: 'instructor-1',
             categoryId: null,
             createdAt: new Date(),
@@ -84,7 +89,7 @@ describe('AssignmentsService', () => {
         ...mockSubmission,
         score: 85,
         feedback: 'Bài làm tốt!',
-        status: 'GRADED',
+        status: SubmissionStatus.GRADED,
       } as any);
 
       const result = await service.gradeSubmission('instructor-1', 'sub-1', {
@@ -93,7 +98,7 @@ describe('AssignmentsService', () => {
       });
 
       expect(result.score).toBe(85);
-      expect(result.status).toBe('GRADED');
+      expect(result.status).toBe(SubmissionStatus.GRADED);
       expect(mockNotifications.createNotification).toHaveBeenCalledWith(
         expect.objectContaining({
           userId: 'student-1',

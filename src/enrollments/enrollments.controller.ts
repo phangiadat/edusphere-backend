@@ -6,6 +6,7 @@ import {
   UseGuards,
   Req,
   Headers,
+  Query,
 } from '@nestjs/common';
 import type { RawBodyRequest } from '@nestjs/common';
 import { EnrollmentsService } from './enrollments.service';
@@ -34,7 +35,11 @@ export class EnrollmentsController {
 
   @UseGuards(JwtAuthGuard)
   @Get('my-courses')
-  getMyCourses(@Req() req) {
-    return this.enrollmentsService.getMyCourses(req.user.id);
+  getMyCourses(
+    @Req() req,
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '10',
+  ) {
+    return this.enrollmentsService.getMyCourses(req.user.id, +page, +limit);
   }
 }

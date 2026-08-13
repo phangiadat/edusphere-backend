@@ -8,6 +8,7 @@ import Stripe from 'stripe';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { NotificationsService } from 'src/notifications/notifications.service';
+import { CourseStatus, EnrollmentStatus } from '@prisma/client';
 
 @Injectable()
 export class EnrollmentsService {
@@ -29,12 +30,19 @@ export class EnrollmentsService {
       where: {
         id: courseId,
       },
+      select: {
+        id: true,
+        title: true,
+        price: true,
+        thumbnail: true,
+        status: true,
+      },
     });
     if (!course) {
       throw new NotFoundException('Khóa học không tồn tại');
     }
 
-    if (course.status !== 'PUBLISHED') {
+    if (course.status !== CourseStatus.PUBLISHED) {
       throw new BadRequestException(
         'Khóa học này chưa được xuất bản hoặc đã bị gỡ bỏ!',
       );
@@ -90,7 +98,9 @@ export class EnrollmentsService {
         process.env.STRIPE_WEBHOOK_SECRET as string,
       );
     } catch (err) {
-      throw new BadRequestException(`Webhook Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      throw new BadRequestException(
+        `Webhook Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+      );
     }
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session;
@@ -110,13 +120,14 @@ export class EnrollmentsService {
           userId,
           courseId,
           pricePaid,
-          status: 'ACTIVE',
+          status: EnrollmentStatus.ACTIVE,
           paymentIntentId,
         },
       });
 
       const course = await this.prisma.course.findUnique({
         where: { id: courseId },
+        select: { title: true },
       });
       if (course) {
         await this.notificationService.createNotification({
@@ -138,7 +149,7 @@ export class EnrollmentsService {
             paymentIntentId,
           },
           data: {
-            status: 'REFUNDED',
+            status: EnrollmentStatus.REFUNDED,
           },
         });
       }
@@ -147,34 +158,52 @@ export class EnrollmentsService {
     return { received: true };
   }
 
-  async getMyCourses(userId: string) {
-    const enrollments = await this.prisma.enrollment.findMany({
-      where: {
-        userId: userId,
-        status: 'ACTIVE',
-      },
-      include: {
-        course: {
-          select: {
-            id: true,
-            title: true,
-            thumbnail: true,
-            instructor: {
-              select: { fullName: true, avatarUrl: true },
+  async getMyCourses(userId: string, page = 1, limit = 10) {
+    const skip = (page - 1) * limit;
+
+    const [enrollments, total] = await Promise.all([
+      this.prisma.enrollment.findMany({
+        where: {
+          userId: userId,
+          status: EnrollmentStatus.ACTIVE,
+        },
+        select: {
+          id: true,
+          progress: true,
+          createdAt: true,
+          course: {
+            select: {
+              id: true,
+              title: true,
+              thumbnail: true,
+              instructor: {
+                select: { fullName: true, avatarUrl: true },
+              },
             },
           },
         },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.enrollment.count({
+        where: {
+          userId: userId,
+          status: EnrollmentStatus.ACTIVE,
+        },
+      }),
+    ]);
 
-    return enrollments.map((enrollment) => ({
+    const formattedData = enrollments.map((enrollment) => ({
       enrollmentId: enrollment.id,
       progress: enrollment.progress,
       purchaseAt: enrollment.createdAt,
       course: enrollment.course,
     }));
+
+    return {
+      data: formattedData,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
   }
-
-
 }

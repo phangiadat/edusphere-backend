@@ -6,16 +6,21 @@ import {
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { EnrollmentStatus } from '@prisma/client';
 
 @Injectable()
 export class LessonsService {
   constructor(private prisma: PrismaService) {}
+
   async create(createLessonDto: CreateLessonDto, instructorId: string) {
     const { title, chapterId, content, videoUrl } = createLessonDto;
 
     const chapter = await this.prisma.chapter.findUnique({
       where: { id: chapterId },
-      include: { course: true },
+      select: {
+        id: true,
+        course: { select: { instructorId: true } },
+      },
     });
     if (!chapter) {
       throw new NotFoundException('Không tìm thấy chương học này');
@@ -29,8 +34,10 @@ export class LessonsService {
     const lastLesson = await this.prisma.lesson.findFirst({
       where: { chapterId },
       orderBy: { order: 'desc' },
+      select: { order: true },
     });
     const newOrder = lastLesson ? lastLesson.order + 1 : 1;
+
     return this.prisma.lesson.create({
       data: {
         title,
@@ -42,10 +49,18 @@ export class LessonsService {
     });
   }
 
-  async findAllByChapter(chapterId: string, instructorId: string) {
+  async findAllByChapter(
+    chapterId: string,
+    instructorId: string,
+    page?: number,
+    limit?: number,
+  ) {
     const chapter = await this.prisma.chapter.findUnique({
       where: { id: chapterId },
-      include: { course: true },
+      select: {
+        id: true,
+        course: { select: { instructorId: true } },
+      },
     });
 
     if (!chapter) {
@@ -54,19 +69,38 @@ export class LessonsService {
     if (chapter.course.instructorId !== instructorId) {
       throw new ForbiddenException('Bạn không có quyền xem danh sách này');
     }
+
+    const skip = page && limit ? (page - 1) * limit : undefined;
+    const take = page && limit ? limit : undefined;
+
     return this.prisma.lesson.findMany({
       where: { chapterId },
       orderBy: { order: 'asc' },
+      skip,
+      take,
     });
   }
 
   async findOne(id: string, instructorId: string) {
     const lesson = await this.prisma.lesson.findUnique({
       where: { id },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        content: true,
+        videoUrl: true,
+        order: true,
+        duration: true,
+        isPublished: true,
+        isFreePreview: true,
+        chapterId: true,
+        createdAt: true,
+        updatedAt: true,
         chapter: {
-          include: {
-            course: true,
+          select: {
+            course: {
+              select: { instructorId: true },
+            },
           },
         },
       },
@@ -109,10 +143,24 @@ export class LessonsService {
   async watchLesson(id: string, userId: string) {
     const lesson = await this.prisma.lesson.findUnique({
       where: { id },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        content: true,
+        videoUrl: true,
+        order: true,
+        duration: true,
+        isPublished: true,
+        isFreePreview: true,
+        chapterId: true,
+        createdAt: true,
+        updatedAt: true,
         chapter: {
-          include: {
-            course: true,
+          select: {
+            courseId: true,
+            course: {
+              select: { instructorId: true },
+            },
           },
         },
       },
@@ -131,8 +179,9 @@ export class LessonsService {
         where: {
           userId_courseId: { userId, courseId },
         },
+        select: { status: true },
       });
-      if (!isEnrolled || isEnrolled.status !== 'ACTIVE') {
+      if (!isEnrolled || isEnrolled.status !== EnrollmentStatus.ACTIVE) {
         throw new ForbiddenException(
           'Bạn phải mua khóa học này để xem nội dung',
         );
@@ -146,8 +195,11 @@ export class LessonsService {
   async markAsComplete(lessonId: string, userId: string) {
     const lesson = await this.prisma.lesson.findUnique({
       where: { id: lessonId },
-      include: {
-        chapter: true,
+      select: {
+        id: true,
+        chapter: {
+          select: { courseId: true },
+        },
       },
     });
     if (!lesson) {
@@ -163,7 +215,7 @@ export class LessonsService {
 
     const courseLessons = await this.prisma.lesson.findMany({
       where: { chapter: { courseId }, isPublished: true },
-      select: { id: true }, // Chỉ lấy ID cho nhẹ
+      select: { id: true },
     });
     const lessonIds = courseLessons.map((l) => l.id);
     const totalLessons = lessonIds.length;
@@ -172,15 +224,13 @@ export class LessonsService {
       where: {
         userId,
         isCompleted: true,
-        lessonId: { in: lessonIds }, // Dùng toán tử IN: Tìm các lessonId nằm trong mảng trên
+        lessonId: { in: lessonIds },
       },
     });
 
-    // Công thức tính phần trăm
     const progressPercentage =
       totalLessons === 0 ? 0 : (completedLessons / totalLessons) * 100;
 
-    // 4. Cập nhật vào bảng Enrollment
     await this.prisma.enrollment.update({
       where: { userId_courseId: { userId, courseId } },
       data: { progress: progressPercentage },

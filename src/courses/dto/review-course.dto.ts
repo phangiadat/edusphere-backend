@@ -1,12 +1,12 @@
-import { IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { CourseStatus } from '@prisma/client';
 
 export class ReviewCourseDto {
-  @IsString()
-  @IsNotEmpty({ message: 'Trạng thái không được để trống' })
-  @IsIn(['PUBLISHED', 'REJECTED'], {
+  @IsEnum(CourseStatus, {
     message: 'Trạng thái chỉ được là PUBLISHED hoặc REJECTED',
   })
-  status: string;
+  @IsNotEmpty({ message: 'Trạng thái không được để trống' })
+  status: CourseStatus;
 
   @IsOptional()
   @IsString()
