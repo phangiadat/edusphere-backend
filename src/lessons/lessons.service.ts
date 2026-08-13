@@ -100,7 +100,7 @@ export class LessonsService {
   async remove(id: string, instructorId: string) {
     await this.findOne(id, instructorId);
 
-    this.prisma.lesson.delete({
+    await this.prisma.lesson.delete({
       where: { id },
     });
     return { message: 'Đã xóa bài giảng thành công!' };

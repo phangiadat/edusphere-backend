@@ -337,7 +337,7 @@ export class CoursesService {
         'Chỉ có thể duyệt khóa học đang ở trạng thái PENDING',
       );
     }
-    const updatedCourse = this.prisma.course.update({
+    const updatedCourse = await this.prisma.course.update({
       where: { id: courseId },
       data: {
         status: reviewDto.status,

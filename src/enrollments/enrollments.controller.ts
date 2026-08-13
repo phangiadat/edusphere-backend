@@ -2,17 +2,13 @@ import {
   Controller,
   Get,
   Post,
-  Body,
-  Patch,
   Param,
-  Delete,
   UseGuards,
   Req,
   Headers,
 } from '@nestjs/common';
 import type { RawBodyRequest } from '@nestjs/common';
 import { EnrollmentsService } from './enrollments.service';
-import { UpdateEnrollmentDto } from './dto/update-enrollment.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
@@ -34,29 +30,6 @@ export class EnrollmentsController {
     @Headers('stripe-signature') signature: string,
   ) {
     return this.enrollmentsService.handleStripeWebhook(req, signature);
-  }
-
-  @Get()
-  findAll() {
-    return this.enrollmentsService.findAll();
-  }
-
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.enrollmentsService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(
-    @Param('id') id: string,
-    @Body() updateEnrollmentDto: UpdateEnrollmentDto,
-  ) {
-    return this.enrollmentsService.update(+id, updateEnrollmentDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.enrollmentsService.remove(+id);
   }
 
   @UseGuards(JwtAuthGuard)

@@ -1,46 +1,47 @@
-import { Logger } from '@nestjs/common';
+import { Logger, UseGuards } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import {
   ConnectedSocket,
   MessageBody,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  OnGatewayInit,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { ChatService } from './chat.service';
+import { createWsAuthMiddleware } from 'src/auth/ws-auth.middleware';
+import { WsJwtGuard } from 'src/auth/guards/ws-jwt.guard';
 
 @WebSocketGateway({
   cors: { origin: '*' },
   namespace: '/chat',
 })
-export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class ChatGateway
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
   server: Server;
 
   private logger: Logger = new Logger('ChatGateway');
 
   constructor(
-    private prisma: PrismaService,
+    private chatService: ChatService,
     private jwtService: JwtService,
   ) {}
 
-  async handleConnection(client: Socket) {
-    try {
-      const token = client.handshake.auth?.token?.split(' ')[1];
-      if (!token) {
-        client.disconnect();
-        return;
-      }
-      const payload = await this.jwtService.verifyAsync(token);
-      client.data.user = payload;
+  afterInit(server: Server) {
+    server.use(createWsAuthMiddleware(this.jwtService));
+    this.logger.log('Chat WebSocket đã sẵn sàng hoạt động');
+  }
+
+  handleConnection(client: Socket) {
+    if (client.data?.user) {
       this.logger.log(
-        `✅ Client KẾT NỐI KÊNH CHAT: ${client.id} (User ID: ${payload.id})`,
+        `✅ Client KẾT NỐI KÊNH CHAT: ${client.id} (User: ${client.data.user.sub || client.data.user.id})`,
       );
-    } catch (error) {
-      client.disconnect();
     }
   }
 
@@ -50,6 +51,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage('join_conversation')
   handleJoinConversation(
     @ConnectedSocket() client: Socket,
@@ -57,7 +59,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     client.join(conversationId);
     this.logger.log(
-      `User ${client.data.user.id} đã tham gia phòng chat: ${conversationId}`,
+      `User ${client.data.user.sub || client.data.user.id} đã tham gia phòng chat: ${conversationId}`,
     );
     return {
       status: 'Joined',
@@ -65,39 +67,33 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     };
   }
 
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage('send_message')
   async handleMessage(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: { conversationId: string; content: string },
   ) {
-    const senderId = client.data.user.id;
+    try {
+      const senderId = client.data.user.sub || client.data.user.id;
 
-    const savedMessage = await this.prisma.message.create({
-      data: {
-        conversationId: payload.conversationId,
-        senderId: senderId,
-        content: payload.content,
-      },
-      include: {
-        sender: {
-          select: {
-            id: true,
-            email: true,
-            role: true,
-          },
-        },
-      },
-    });
+      const savedMessage = await this.chatService.sendMessage(
+        payload.conversationId,
+        senderId,
+        payload.content,
+      );
 
-    this.server
-      .to(payload.conversationId)
-      .emit('receive_message', savedMessage);
+      this.server
+        .to(payload.conversationId)
+        .emit('receive_message', savedMessage);
 
-    await this.prisma.conversation.update({
-      where: { id: payload.conversationId },
-      data: { updatedAt: new Date() },
-    });
-
-    return savedMessage;
+      return savedMessage;
+    } catch (error) {
+      this.logger.error(
+        `Lỗi gửi tin nhắn: ${error instanceof Error ? error.message : 'Unknown'}`,
+      );
+      client.emit('error_message', {
+        message: 'Không thể gửi tin nhắn. Vui lòng thử lại.',
+      });
+    }
   }
 }

@@ -8,6 +8,7 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { createWsAuthMiddleware } from 'src/auth/ws-auth.middleware';
 
 @WebSocketGateway({
   cors: {
@@ -25,33 +26,18 @@ export class NotificationsGateway
   constructor(private readonly jwtService: JwtService) {}
 
   afterInit(server: Server) {
-    this.logger.log('Websockets đã sẵn sàng hoạt động');
+    server.use(createWsAuthMiddleware(this.jwtService));
+    this.logger.log('Notifications WebSocket đã sẵn sàng hoạt động');
   }
 
-  async handleConnection(client: Socket, ...args: any[]) {
-    try {
-      const token = client.handshake.auth?.token?.split(' ')[1];
-      if (!token) {
-        this.logger.warn(`Client ${client.id} bị đuổi vì không có Token`);
-        client.disconnect();
-        return;
-      }
-
-      const payload = await this.jwtService.verifyAsync(token);
-
-      const roomName = payload.id;
-      client.join(roomName);
-
-      client.data.user = payload;
+  handleConnection(client: Socket) {
+    if (client.data?.user) {
+      const userId = client.data.user.sub || client.data.user.id;
+      client.join(userId);
 
       this.logger.log(
-        `✅ Client ${client.id} KẾT NỐI và đã chui vào phòng: ${roomName}`,
+        `✅ Client ${client.id} KẾT NỐI và đã chui vào phòng: ${userId}`,
       );
-    } catch (error) {
-      this.logger.error(
-        `❌ Client ${client.id} bị ĐUỔI vì Token sai hoặc hết hạn!`,
-      );
-      client.disconnect();
     }
   }
 

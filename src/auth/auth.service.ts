@@ -4,6 +4,13 @@ import { RegisterDto } from './dto/register.dto';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 
+interface JwtPayloadUser {
+  id: string;
+  email: string;
+  fullName: string;
+  role: string;
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -32,7 +39,7 @@ export class AuthService {
       },
     });
 
-    const { password: _, ...userWithoutPassword } = newUser;
+    const { password: _hashedPassword, ...userWithoutPassword } = newUser;
 
     return {
       message: 'Đăng ký tài khoản thành công',
@@ -46,14 +53,14 @@ export class AuthService {
     });
 
     if (user && (await bcrypt.compare(password, user.password))) {
-      const { password, ...result } = user;
+      const { password: _hashedPassword, ...result } = user;
       return result;
     }
 
     return null;
   }
 
-  async login(user: any) {
+  async login(user: JwtPayloadUser) {
     const payload = {
       email: user.email,
       sub: user.id,

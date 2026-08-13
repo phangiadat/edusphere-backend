@@ -11,8 +11,6 @@ import { RegisterDto } from './dto/register.dto';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { LoginDto } from './dto/login.dto';
 import { Public } from './decorators/public.decorator';
-import { Roles } from './decorators/roles.decorator';
-import { Role } from 'generated/prisma/enums';
 
 @Controller('auth')
 export class AuthController {

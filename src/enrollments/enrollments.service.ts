@@ -4,7 +4,6 @@ import {
   NotFoundException,
   RawBodyRequest,
 } from '@nestjs/common';
-import { UpdateEnrollmentDto } from './dto/update-enrollment.dto';
 import Stripe from 'stripe';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
@@ -91,7 +90,7 @@ export class EnrollmentsService {
         process.env.STRIPE_WEBHOOK_SECRET as string,
       );
     } catch (err) {
-      throw new BadRequestException(`Webhook Error: ${err.message}`);
+      throw new BadRequestException(`Webhook Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session;
@@ -170,26 +169,12 @@ export class EnrollmentsService {
     });
 
     return enrollments.map((enrollment) => ({
-      enrollemntId: enrollment.id,
+      enrollmentId: enrollment.id,
       progress: enrollment.progress,
       purchaseAt: enrollment.createdAt,
       course: enrollment.course,
     }));
   }
 
-  findAll() {
-    return `This action returns all enrollments`;
-  }
 
-  findOne(id: number) {
-    return `This action returns a #${id} enrollment`;
-  }
-
-  update(id: number, updateEnrollmentDto: UpdateEnrollmentDto) {
-    return `This action updates a #${id} enrollment`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} enrollment`;
-  }
 }

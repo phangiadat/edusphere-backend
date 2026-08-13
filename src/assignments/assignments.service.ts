@@ -46,6 +46,12 @@ export class AssignmentsService {
     assignmentId: string,
     submitDto: SubmitAssignmentDto,
   ) {
+    if (!submitDto.content && !submitDto.fileUrl) {
+      throw new BadRequestException(
+        'Bạn phải nhập nội dung hoặc đính kèm file để nộp bài',
+      );
+    }
+
     const assignment = await this.prisma.assignment.findUnique({
       where: { id: assignmentId },
       include: { chapter: true },

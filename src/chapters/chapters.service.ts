@@ -106,7 +106,7 @@ export class ChaptersService {
   async remove(id: string, instructorId: string) {
     await this.findOne(id, instructorId);
 
-    this.prisma.chapter.delete({
+    await this.prisma.chapter.delete({
       where: { id },
     });
 

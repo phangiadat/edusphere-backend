@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
@@ -6,6 +10,10 @@ export class ChatService {
   constructor(private prisma: PrismaService) {}
 
   async findOrCreateConversation(userId1: string, userId2: string) {
+    if (userId1 === userId2) {
+      throw new BadRequestException('Không thể tạo hội thoại với chính mình');
+    }
+
     let conversation = await this.prisma.conversation.findFirst({
       where: {
         OR: [
@@ -28,6 +36,38 @@ export class ChatService {
         },
       });
     }
+
+    return conversation;
+  }
+
+  async sendMessage(
+    conversationId: string,
+    senderId: string,
+    content: string,
+  ) {
+    const savedMessage = await this.prisma.message.create({
+      data: {
+        conversationId,
+        senderId,
+        content,
+      },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            email: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    await this.prisma.conversation.update({
+      where: { id: conversationId },
+      data: { updatedAt: new Date() },
+    });
+
+    return savedMessage;
   }
 
   async getUserConversation(userId: string) {
