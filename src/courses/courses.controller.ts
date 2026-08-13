@@ -13,6 +13,7 @@ import {
   BadRequestException,
   UseGuards,
 } from '@nestjs/common';
+import { CacheInterceptor, CacheKey, CacheTTL } from '@nestjs/cache-manager';
 import { CoursesService } from './courses.service';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
@@ -28,11 +29,16 @@ import { ReviewCourseDto } from './dto/review-course.dto';
 export class CoursesController {
   constructor(private readonly coursesService: CoursesService) {}
 
+  @UseInterceptors(CacheInterceptor)
+  @CacheKey('all_published_courses')
+  @CacheTTL(1800 * 1000)
   @Get('public/all')
   findAllPublic(@Query() filterDto: CourseFilterDto) {
     return this.coursesService.findAllPublic(filterDto);
   }
 
+  @UseInterceptors(CacheInterceptor)
+  @CacheTTL(1800 * 1000)
   @Get('public/:id')
   findOnePublic(@Param('id') id: string) {
     return this.coursesService.findOnePublic(id);

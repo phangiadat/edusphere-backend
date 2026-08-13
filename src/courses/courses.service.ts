@@ -2,10 +2,13 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import type { Cache } from 'cache-manager';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -21,7 +24,19 @@ export class CoursesService {
     private prisma: PrismaService,
     private cloudinaryService: CloudinaryService,
     private notificationSerivce: NotificationsService,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
+
+  private async clearCourseCache(courseId?: string) {
+    try {
+      await this.cacheManager.del('all_published_courses');
+      if (courseId) {
+        await this.cacheManager.del(`/courses/public/${courseId}`);
+      }
+    } catch (error) {
+      // Fail-safe cache invalidation
+    }
+  }
 
   async findAllPublic(filterDto: CourseFilterDto) {
     const { search, minPrice, maxPrice, page = 1, limit = 10 } = filterDto;
@@ -165,6 +180,8 @@ export class CoursesService {
         },
       });
 
+      await this.clearCourseCache();
+
       return {
         message: 'Tạo khóa học thành công',
         data: newCourse,
@@ -238,10 +255,14 @@ export class CoursesService {
       }
     }
 
-    return this.prisma.course.update({
+    const updated = await this.prisma.course.update({
       where: { id },
       data: updateCourseDto,
     });
+
+    await this.clearCourseCache(id);
+
+    return updated;
   }
 
   async remove(id: string, instructorId: string) {
@@ -250,6 +271,8 @@ export class CoursesService {
     await this.prisma.course.delete({
       where: { id },
     });
+
+    await this.clearCourseCache(id);
 
     return {
       message: 'Đã xóa khóa học thành công',
@@ -275,6 +298,8 @@ export class CoursesService {
           thumbnail: fileUrl,
         },
       });
+
+      await this.clearCourseCache(id);
 
       return {
         message: 'Cập nhật ảnh bìa lên Cloudinary thành công',
@@ -332,12 +357,16 @@ export class CoursesService {
       );
     }
 
-    return this.prisma.course.update({
+    const updated = await this.prisma.course.update({
       where: { id: courseId },
       data: {
         status: CourseStatus.PENDING,
       },
     });
+
+    await this.clearCourseCache(courseId);
+
+    return updated;
   }
 
   async getPendingCourses() {
@@ -408,6 +437,8 @@ export class CoursesService {
           : `Khóa học "${course.title}" của bạn chưa đạt yêu cầu. Lý do: ${reviewDto.reason || 'Vui lòng kiểm tra lại nội dung.'}`,
       link: `/instructor/courses/${course.id}`,
     });
+
+    await this.clearCourseCache(courseId);
 
     return updatedCourse;
   }

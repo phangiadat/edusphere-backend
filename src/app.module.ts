@@ -1,5 +1,7 @@
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Module } from '@nestjs/common';
+import { CacheModule } from '@nestjs/cache-manager';
+import { redisStore } from 'cache-manager-redis-yet';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
@@ -22,6 +24,20 @@ import { AiModule } from './ai/ai.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    CacheModule.registerAsync({
+      isGlobal: true,
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        store: await redisStore({
+          socket: {
+            host: configService.get<string>('REDIS_HOST', '127.0.0.1'),
+            port: configService.get<number>('REDIS_PORT', 6379),
+          },
+          ttl: configService.get<number>('REDIS_TTL', 1800) * 1000,
+        }),
+      }),
+      inject: [ConfigService],
+    }),
     PrismaModule,
     AuthModule,
     CoursesModule,

@@ -3,6 +3,7 @@ import { CoursesService } from './courses.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 import { NotificationsService } from 'src/notifications/notifications.service';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { mockDeep, DeepMockProxy } from 'jest-mock-extended';
 import { CourseStatus, PrismaClient } from '@prisma/client';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
@@ -11,11 +12,17 @@ describe('CoursesService', () => {
   let service: CoursesService;
   let mockPrisma: DeepMockProxy<PrismaClient>;
   let mockNotifications: { createNotification: jest.Mock };
+  let mockCacheManager: { del: jest.Mock; get: jest.Mock; set: jest.Mock };
 
   beforeEach(async () => {
     mockPrisma = mockDeep<PrismaClient>();
     mockNotifications = {
       createNotification: jest.fn().mockResolvedValue(null),
+    };
+    mockCacheManager = {
+      del: jest.fn().mockResolvedValue(undefined),
+      get: jest.fn().mockResolvedValue(null),
+      set: jest.fn().mockResolvedValue(undefined),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -24,6 +31,7 @@ describe('CoursesService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CloudinaryService, useValue: { uploadFile: jest.fn() } },
         { provide: NotificationsService, useValue: mockNotifications },
+        { provide: CACHE_MANAGER, useValue: mockCacheManager },
       ],
     }).compile();
 
@@ -64,6 +72,7 @@ describe('CoursesService', () => {
           type: 'COURSE_APPROVED',
         }),
       );
+      expect(mockCacheManager.del).toHaveBeenCalledWith('all_published_courses');
     });
 
     it('should throw NotFoundException when course does not exist', async () => {
