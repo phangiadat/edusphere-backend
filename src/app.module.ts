@@ -23,6 +23,8 @@ import { AssignmentsModule } from './assignments/assignments.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ChatModule } from './chat/chat.module';
 import { AiModule } from './ai/ai.module';
+import { UsersModule } from './users/users.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -56,12 +58,14 @@ import { AiModule } from './ai/ai.module';
           new Redis({
             host: configService.get<string>('REDIS_HOST', '127.0.0.1'),
             port: configService.get<number>('REDIS_PORT', 6379),
+            lazyConnect: true,
           }),
         ),
       }),
     }),
     PrismaModule,
     AuthModule,
+    UsersModule,
     CoursesModule,
     CloudinaryModule,
     ChaptersModule,
@@ -73,6 +77,7 @@ import { AiModule } from './ai/ai.module';
     NotificationsModule,
     ChatModule,
     AiModule,
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [

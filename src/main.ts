@@ -3,6 +3,8 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
+import morgan from 'morgan';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -11,6 +13,12 @@ async function bootstrap() {
 
   // ─── Security: Helmet HTTP Headers ────────────────────────────────────────
   app.use(helmet());
+
+  // ─── HTTP Request Logging (Morgan) ───────────────────────────────────────
+  app.use(morgan('dev'));
+
+  // ─── Global Exception Filter ──────────────────────────────────────────────
+  app.useGlobalFilters(new HttpExceptionFilter());
 
   // ─── CORS ─────────────────────────────────────────────────────────────────
   const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
@@ -56,7 +64,8 @@ Sau đó nhấn **Authorize** và nhập \`Bearer <accessToken>\`.
       },
       'JWT-auth',
     )
-    .addTag('Auth', 'Đăng ký, Đăng nhập, Refresh Token, Logout')
+    .addTag('Auth', 'Đăng ký, Đăng nhập, Refresh Token, Logout, Đổi/Quên mật khẩu')
+    .addTag('Users', 'Quản lý Hồ sơ & Người dùng (Admin)')
     .addTag('Courses', 'Quản lý khóa học')
     .addTag('Chapters', 'Quản lý chương học')
     .addTag('Lessons', 'Quản lý bài giảng')
@@ -67,6 +76,7 @@ Sau đó nhấn **Authorize** và nhập \`Bearer <accessToken>\`.
     .addTag('Notifications', 'Thông báo')
     .addTag('Chat', 'Tin nhắn 1-1')
     .addTag('AI', 'Trợ lý AI (Google Gemini)')
+    .addTag('Health', 'Kiểm tra trạng thái hệ thống')
     .addServer(`http://localhost:${process.env.PORT ?? 3000}`, 'Local Development')
     .build();
 

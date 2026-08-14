@@ -1,6 +1,8 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -8,6 +10,8 @@ import { RegisterDto } from './dto/register.dto';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { MailerService } from 'src/common/services/mailer.service';
 
 interface JwtPayloadUser {
   id: string;
@@ -22,6 +26,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private mailerService: MailerService,
   ) {}
 
   // ─── Private Helpers ──────────────────────────────────────────────────────
@@ -40,7 +45,6 @@ export class AuthService {
     role: string;
   }) {
     const secret = this.configService.get<string>('JWT_REFRESH_SECRET');
-    // 7 ngày = 7 * 24 * 60 * 60 giây
     return this.jwtService.sign(payload, { secret, expiresIn: 60 * 60 * 24 * 7 });
   }
 
@@ -102,7 +106,6 @@ export class AuthService {
     const accessToken = this.generateAccessToken(payload);
     const refreshToken = this.generateRefreshToken(payload);
 
-    // Lưu refresh token đã hash vào DB
     const hashedRefreshToken = await this.hashToken(refreshToken);
     await this.prisma.user.update({
       where: { id: user.id },
@@ -125,7 +128,6 @@ export class AuthService {
   async refresh(incomingRefreshToken: string) {
     let payload: any;
 
-    // 1. Xác minh chữ ký JWT của refreshToken
     try {
       payload = this.jwtService.verify(incomingRefreshToken, {
         secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
@@ -134,7 +136,6 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token không hợp lệ hoặc đã hết hạn');
     }
 
-    // 2. Tìm user trong DB, kiểm tra refreshToken đã hash
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
       select: { id: true, email: true, role: true, fullName: true, refreshToken: true },
@@ -152,7 +153,6 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token không khớp. Vui lòng đăng nhập lại.');
     }
 
-    // 3. Cấp token mới (Rotation)
     const newPayload = { sub: user.id, email: user.email, role: user.role };
     const newAccessToken = this.generateAccessToken(newPayload);
     const newRefreshToken = this.generateRefreshToken(newPayload);
@@ -171,12 +171,93 @@ export class AuthService {
   }
 
   async logout(userId: string) {
-    // Xóa refreshToken trong DB → vô hiệu hóa phiên
     await this.prisma.user.update({
       where: { id: userId },
       data: { refreshToken: null },
     });
 
     return { message: 'Đăng xuất thành công' };
+  }
+
+  async changePassword(userId: string, dto: ChangePasswordDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy người dùng');
+    }
+
+    const isOldPasswordMatch = await bcrypt.compare(dto.oldPassword, user.password);
+    if (!isOldPasswordMatch) {
+      throw new BadRequestException('Mật khẩu hiện tại không chính xác');
+    }
+
+    const hashedNewPassword = await bcrypt.hash(dto.newPassword, 10);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        password: hashedNewPassword,
+        refreshToken: null, // Revoke active sessions
+      },
+    });
+
+    return { message: 'Đổi mật khẩu thành công! Vui lòng đăng nhập lại.' };
+  }
+
+  async forgotPassword(email: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true, email: true },
+    });
+
+    if (!user) {
+      // Bảo mật: Không tiết lộ email có tồn tại hay không
+      return {
+        message: 'Nếu email tồn tại trong hệ thống, bạn sẽ nhận được hướng dẫn đặt lại mật khẩu.',
+      };
+    }
+
+    const resetToken = this.jwtService.sign(
+      { sub: user.id, email: user.email, type: 'RESET_PASSWORD' },
+      { expiresIn: 60 * 15 }, // 15 phút
+    );
+
+    await this.mailerService.sendResetPasswordEmail(user.email, resetToken);
+
+    return {
+      message: 'Nếu email tồn tại trong hệ thống, bạn sẽ nhận được hướng dẫn đặt lại mật khẩu.',
+      resetToken, // Dev friendly
+    };
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    let payload: any;
+    try {
+      payload = this.jwtService.verify(token);
+    } catch {
+      throw new BadRequestException('Reset token không hợp lệ hoặc đã hết hạn');
+    }
+
+    if (payload.type !== 'RESET_PASSWORD') {
+      throw new BadRequestException('Loại token không hợp lệ');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+    });
+    if (!user) {
+      throw new NotFoundException('Người dùng không tồn tại');
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        refreshToken: null,
+      },
+    });
+
+    return { message: 'Đặt lại mật khẩu thành công! Vui lòng đăng nhập với mật khẩu mới.' };
   }
 }
