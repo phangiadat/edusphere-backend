@@ -1,5 +1,5 @@
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { Module } from '@nestjs/common';
+import { Module, Logger } from '@nestjs/common';
 import { CacheModule } from '@nestjs/cache-manager';
 import { redisStore } from 'cache-manager-redis-yet';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
@@ -26,42 +26,66 @@ import { AiModule } from './ai/ai.module';
 import { UsersModule } from './users/users.module';
 import { HealthModule } from './health/health.module';
 
+const logger = new Logger('RedisSetup');
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     CacheModule.registerAsync({
       isGlobal: true,
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
-        store: await redisStore({
-          socket: {
-            host: configService.get<string>('REDIS_HOST', '127.0.0.1'),
-            port: configService.get<number>('REDIS_PORT', 6379),
-          },
-          ttl: configService.get<number>('REDIS_TTL', 1800) * 1000,
-        }),
-      }),
+      useFactory: async (configService: ConfigService) => {
+        const host = configService.get<string>('REDIS_HOST', '127.0.0.1');
+        const port = configService.get<number>('REDIS_PORT', 6379);
+        const ttl = configService.get<number>('REDIS_TTL', 1800) * 1000;
+
+        try {
+          const store = await redisStore({
+            socket: { host, port, connectTimeout: 3000 },
+            ttl,
+          });
+          logger.log(`✅ Kết nối Redis Cache thành công (${host}:${port})`);
+          return { store };
+        } catch (error) {
+          logger.warn(
+            `⚠️ Không thể kết nối Redis Server (${host}:${port}). Tự động fallback sang In-Memory Cache. (Vui lòng bật redis-server để dùng Redis)`,
+          );
+          return { ttl }; // Fallback to NestJS default Memory Cache
+        }
+      },
       inject: [ConfigService],
     }),
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        throttlers: [
-          {
-            name: 'default',
-            ttl: 60000,
-            limit: 100,
-          },
-        ],
-        storage: new ThrottlerStorageRedisService(
-          new Redis({
-            host: configService.get<string>('REDIS_HOST', '127.0.0.1'),
-            port: configService.get<number>('REDIS_PORT', 6379),
-            lazyConnect: true,
-          }),
-        ),
-      }),
+      useFactory: (configService: ConfigService) => {
+        const host = configService.get<string>('REDIS_HOST', '127.0.0.1');
+        const port = configService.get<number>('REDIS_PORT', 6379);
+
+        const redisClient = new Redis({
+          host,
+          port,
+          lazyConnect: true,
+          maxRetriesPerRequest: 1,
+          enableOfflineQueue: false,
+        });
+
+        // Suppress unhandled crash event when Redis server is offline
+        redisClient.on('error', () => {
+          // Silent error handling to keep NestJS server running
+        });
+
+        return {
+          throttlers: [
+            {
+              name: 'default',
+              ttl: 60000,
+              limit: 100,
+            },
+          ],
+          storage: new ThrottlerStorageRedisService(redisClient),
+        };
+      },
     }),
     PrismaModule,
     AuthModule,
