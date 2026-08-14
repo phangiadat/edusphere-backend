@@ -16,7 +16,7 @@ import { createWsAuthMiddleware } from 'src/auth/ws-auth.middleware';
 import { WsJwtGuard } from 'src/auth/guards/ws-jwt.guard';
 
 @WebSocketGateway({
-  cors: { origin: '*' },
+  cors: { origin: process.env.FRONTEND_URL ?? 'http://localhost:5173' },
   namespace: '/chat',
 })
 export class ChatGateway

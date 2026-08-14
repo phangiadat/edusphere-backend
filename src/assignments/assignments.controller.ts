@@ -9,6 +9,7 @@ import {
   Req,
   Query,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AssignmentsService } from './assignments.service';
 import { CreateAssignmentDto } from './dto/create-assignment.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
@@ -17,6 +18,7 @@ import { Role } from '@prisma/client';
 import { SubmitAssignmentDto } from './dto/submit-assignment.dto';
 import { GradeAssignmentDto } from './dto/grade-assignment.dto';
 
+@ApiTags('Assignments')
 @Controller('assignments')
 export class AssignmentsController {
   constructor(private readonly assignmentsService: AssignmentsService) {}
@@ -24,12 +26,16 @@ export class AssignmentsController {
   @UseGuards(JwtAuthGuard)
   @Roles(Role.INSTRUCTOR)
   @Post()
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: '[Instructor] Tạo bài tập mới' })
   create(@Body() createAssignmentDto: CreateAssignmentDto, @Req() req) {
     return this.assignmentsService.create(req.user.id, createAssignmentDto);
   }
 
   @UseGuards(JwtAuthGuard)
   @Post(':id/submit')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: '[Student] Nộp bài tập' })
   submitAssignment(
     @Param('id') id: string,
     @Body() submitDto: SubmitAssignmentDto,
@@ -53,6 +59,8 @@ export class AssignmentsController {
   @UseGuards(JwtAuthGuard)
   @Roles(Role.INSTRUCTOR)
   @Patch('submissions/:submissionId/grade')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: '[Instructor] Chấm điểm bài nộp' })
   gradeSubmission(
     @Param('submissionId') submissionId: string,
     @Body() gradeDto: GradeAssignmentDto,
