@@ -41,16 +41,16 @@ const logger = new Logger('RedisSetup');
 
         try {
           const store = await redisStore({
-            socket: { host, port, connectTimeout: 3000 },
+            socket: { host, port, connectTimeout: 2000 },
             ttl,
           });
           logger.log(`✅ Kết nối Redis Cache thành công (${host}:${port})`);
           return { store };
         } catch (error) {
           logger.warn(
-            `⚠️ Không thể kết nối Redis Server (${host}:${port}). Tự động fallback sang In-Memory Cache. (Vui lòng bật redis-server để dùng Redis)`,
+            `⚠️ Không thể kết nối Redis Server (${host}:${port}). Tự động fallback sang In-Memory Cache.`,
           );
-          return { ttl }; // Fallback to NestJS default Memory Cache
+          return { ttl };
         }
       },
       inject: [ConfigService],
@@ -58,22 +58,31 @@ const logger = new Logger('RedisSetup');
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => {
+      useFactory: async (configService: ConfigService) => {
         const host = configService.get<string>('REDIS_HOST', '127.0.0.1');
         const port = configService.get<number>('REDIS_PORT', 6379);
 
         const redisClient = new Redis({
           host,
           port,
-          lazyConnect: true,
+          connectTimeout: 2000,
           maxRetriesPerRequest: 1,
-          enableOfflineQueue: false,
+          retryStrategy: () => null, // Stop retrying if offline
         });
 
-        // Suppress unhandled crash event when Redis server is offline
-        redisClient.on('error', () => {
-          // Silent error handling to keep NestJS server running
-        });
+        redisClient.on('error', () => {});
+
+        let storage;
+        try {
+          await redisClient.ping();
+          logger.log(`✅ Kết nối Redis Throttler thành công (${host}:${port})`);
+          storage = new ThrottlerStorageRedisService(redisClient);
+        } catch (err) {
+          logger.warn(
+            `⚠️ Redis không hoạt động (${host}:${port}). Throttler tự động dùng In-Memory Storage.`,
+          );
+          redisClient.disconnect();
+        }
 
         return {
           throttlers: [
@@ -83,7 +92,7 @@ const logger = new Logger('RedisSetup');
               limit: 100,
             },
           ],
-          storage: new ThrottlerStorageRedisService(redisClient),
+          storage,
         };
       },
     }),
