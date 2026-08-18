@@ -1,12 +1,15 @@
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 import {
   IsEmail,
+  IsEnum,
   IsNotEmpty,
+  IsOptional,
   IsString,
   MaxLength,
   MinLength,
 } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Role } from '@prisma/client';
 
 export class RegisterDto {
   @ApiProperty({ example: 'student@edusphere.vn', description: 'Địa chỉ email' })
@@ -25,4 +28,9 @@ export class RegisterDto {
   @IsString()
   @IsNotEmpty({ message: 'Họ và Tên không được để trống' })
   fullName: string;
+
+  @ApiPropertyOptional({ example: 'STUDENT', enum: Role, description: 'Vai trò tài khoản (STUDENT hoặc INSTRUCTOR)' })
+  @IsOptional()
+  @IsEnum(Role, { message: 'Role không hợp lệ' })
+  role?: Role;
 }

@@ -55,7 +55,7 @@ export class AuthService {
   // ─── Public Methods ───────────────────────────────────────────────────────
 
   async register(registerDto: RegisterDto) {
-    const { email, password, fullName } = registerDto;
+    const { email, password, fullName, role } = registerDto;
 
     const existingUser = await this.prisma.user.findUnique({
       where: { email },
@@ -72,6 +72,7 @@ export class AuthService {
         email,
         password: hashedPassword,
         fullName,
+        role: role || 'STUDENT',
       },
     });
 
